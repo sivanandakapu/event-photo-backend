@@ -8,6 +8,23 @@ import os
 import uuid
 import pandas as pd
 
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI
+
+app = FastAPI()
+
+origins = [
+    "*",  # or specify your domain(s) like "http://yourdomain.com"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # allow all origins or your frontend domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app = FastAPI()
 
 PHOTO_DB = "photo_db"
