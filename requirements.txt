@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+deepface
+python-multipart  # for file uploads
+pillow            # image processing
