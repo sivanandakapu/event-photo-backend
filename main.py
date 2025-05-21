@@ -67,47 +67,38 @@ def sync_s3_photos():
 
 @app.post("/find_faces/")
 async def find_faces(file: UploadFile = File(...)):
-    # Step 1: Sync local folder with S3
     try:
         sync_s3_photos()
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Failed to sync from S3: {str(e)}"})
 
-    # Step 2: Save uploaded selfie temporarily
     selfie_filename = f"{uuid.uuid4()}.jpg"
     selfie_path = os.path.join(TEMP_DIR, selfie_filename)
 
     with open(selfie_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Step 3: Face matching with DeepFace
     try:
         result_df = DeepFace.find(
             img_path=selfie_path,
             db_path=PHOTO_DB,
-            enforce_detection=False
+            enforce_detection=True,
+            model_name="VGG-Face",  # Optional: VGG-Face tends to be more reliable
+            distance_metric="cosine"  # Can also try 'euclidean'
         )
 
         if isinstance(result_df, list):
             result_df = result_df[0]
 
-        matched_files = result_df['identity'].tolist() if not result_df.empty else []
+        # ✅ Filter by a distance threshold
+        threshold = 0.3  # adjust based on model; typical values are 0.3–0.4 for cosine
+        if not result_df.empty:
+            result_df = result_df[result_df['VGG-Face_cosine'] <= threshold]
+            matched_files = result_df['identity'].tolist()
+        else:
+            matched_files = []
 
-        # Generate pre-signed URLs
-        matched_urls = []
-        for file_path in matched_files:
-            key = os.path.basename(file_path)
-            try:
-                url = s3.generate_presigned_url(
-                    'get_object',
-                    Params={'Bucket': BUCKET_NAME, 'Key': key},
-                    ExpiresIn=3600  # 1 hour expiry
-                )
-                matched_urls.append(url)
-            except Exception as e:
-                print(f"Error generating URL for {key}: {e}")
-
-        return JSONResponse(content={"matches": matched_urls})
+        return JSONResponse(content={"matches": matched_files})
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
