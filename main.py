@@ -93,7 +93,21 @@ async def find_faces(file: UploadFile = File(...)):
 
         matched_files = result_df['identity'].tolist() if not result_df.empty else []
 
-        return JSONResponse(content={"matches": matched_files})
+        # Generate pre-signed URLs
+        matched_urls = []
+        for file_path in matched_files:
+            key = os.path.basename(file_path)
+            try:
+                url = s3.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': BUCKET_NAME, 'Key': key},
+                    ExpiresIn=3600  # 1 hour expiry
+                )
+                matched_urls.append(url)
+            except Exception as e:
+                print(f"Error generating URL for {key}: {e}")
+
+        return JSONResponse(content={"matches": matched_urls})
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
